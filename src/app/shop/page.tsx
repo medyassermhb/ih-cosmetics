@@ -1,30 +1,41 @@
-// src/app/shop/page.tsx
-export const runtime = 'nodejs'
-export const revalidate = 0
-
-export const metadata = {
-  title: 'Boutique | IH Cosmetics',
-}
-
-type ShopPageProps = {
-  searchParams: {
-    category?: string
-    gender?: string
-  }
-}
-
 import { createServer } from '@/lib/supabase-server'
 import ProductCard from '@/components/products/ProductCard'
 import ProductFilter from '@/components/products/ProductFilter'
 import { type Product } from '@/types/cart'
 import { Suspense } from 'react'
 
+// --- THIS IS THE FIX (Part 1) ---
+// This forces dynamic server-side rendering
+// and fixes the "Edge Runtime" error.
+export const revalidate = 0
+// --- END OF FIX ---
+
+export const metadata = {
+  title: 'Boutique | IH Cosmetics',
+}
+
+// --- THIS IS THE FIX (Part 2) ---
+// searchParams is a Promise
+type ShopPageProps = {
+  searchParams: Promise<{
+    category?: string
+    gender?: string
+  }>
+}
+// --- END OF FIX ---
+
 const ShopPage = async ({ searchParams }: ShopPageProps) => {
   const supabase = createServer()
-  const { category, gender } = searchParams
+  
+  // --- THIS IS THE FIX (Part 3) ---
+  // We await the promise to get the real object
+  const { category, gender } = await searchParams
+  // --- END OF FIX ---
 
+  // Start building the query
   let query = supabase.from('products').select('*')
 
+  // Apply filters if they exist
   if (category && category !== 'all') {
     query = query.eq('category', category)
   }
@@ -32,7 +43,8 @@ const ShopPage = async ({ searchParams }: ShopPageProps) => {
     query = query.eq('gender', gender)
   }
 
-  const { data: products = [], error } = await query.order('created_at', {
+  // Await the query
+  const { data: products, error } = await query.order('created_at', {
     ascending: false,
   })
 
@@ -49,6 +61,7 @@ const ShopPage = async ({ searchParams }: ShopPageProps) => {
         <ProductFilter />
       </Suspense>
 
+      {/* Product Grid */}
       {products.length === 0 ? (
         <p className="text-center text-gray-500">
           Aucun produit ne correspond à vos critères.
