@@ -8,7 +8,13 @@ export const metadata = {
 }
 
 // Helper to format the date
-function formatDate(dateString: string) {
+function formatDate(dateString: string | null) {
+  // Si dateString est null ou undefined, retourne un texte par défaut
+  if (!dateString) {
+    return 'Date inconnue';
+  }
+  
+  // Sinon, formate la date
   return new Date(dateString).toLocaleDateString('fr-FR', {
     day: 'numeric',
     month: 'long',
