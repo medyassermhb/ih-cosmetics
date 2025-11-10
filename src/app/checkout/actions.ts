@@ -4,25 +4,27 @@ import { createServer } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import * as nodemailer from 'nodemailer'
-import { revalidatePath } from 'next/cache'
 
-// Schemas (no change)
+// Schéma de validation pour l'invité
 const shippingSchema = z.object({
   email: z.string().email({ message: 'E-mail invalide.' }),
   name: z.string().min(3, { message: 'Le nom est requis' }),
   phone: z.string().min(10, { message: 'Le téléphone est requis' }),
   address: z.string().min(5, { message: "L'adresse est requise" }),
   city: z.string().min(2, { message: 'La ville est requise' }),
+  
+  // --- DÉBUT DE LA CORRECTION ---
   country: z.literal('Morocco', {
-    errorMap: () => ({ message: 'Seul le Maroc est disponible' }),
+    message: 'Seul le Maroc est disponible',
   }),
+  // --- FIN DE LA CORRECTION ---
 })
 const cartItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().int().positive(),
 })
 
-// Helper function (no change)
+// Fonction Email HTML (inchangée)
 function getEmailHtml(order: any, shipping: any, items: any[], products: any[], totalDHS: number) {
   let itemsHtml = items.map(item => {
     const product = products.find(p => p.id === item.product_id)
@@ -78,22 +80,15 @@ function getEmailHtml(order: any, shipping: any, items: any[], products: any[], 
   `
 }
 
-// --- ACTION 1: CREATE ORDER (Updated) ---
+// Action de création de commande (simplifiée)
 export async function createOrder(
   prevState: any,
   formData: FormData
 ): Promise<{ error?: string; errors?: any; success?: boolean }> {
   const supabase = createServer()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // --- THIS IS THE FIX ---
-  // We get the email from the user session if it exists,
-  // otherwise, we get it from the (enabled) form field.
-  const email = user ? user.email : formData.get('email');
-  // --- END OF FIX ---
-
+  
   const shippingData = {
-    email: email, // Use our new, safe email variable
+    email: formData.get('email'),
     name: formData.get('name'),
     phone: formData.get('phone'),
     address: formData.get('address'),
@@ -150,7 +145,7 @@ export async function createOrder(
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: user ? user.id : null,
+        user_id: null, 
         total_dhs: totalDHS,
         shipping_address: validatedFields.data,
         status: 'received',
@@ -203,53 +198,4 @@ export async function createOrder(
   
   const orderTimestamp = new Date().getTime()
   redirect(`/checkout/success?order_id=${orderTimestamp}`)
-}
-
-// --- INLINE ACTIONS (no change) ---
-export async function inlineLogin(prevState: any, formData: FormData) {
-  const supabase = createServer()
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    return { error: 'Email ou mot de passe invalide.' }
-  }
-
-  revalidatePath('/checkout')
-  return { success: true }
-}
-
-export async function inlineSignup(prevState: any, formData: FormData) {
-  const supabase = createServer()
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${process.env.SITE_URL}/auth/callback`,
-    },
-  })
-
-  if (error) {
-    return { error: "Erreur: L'e-mail est peut-être déjà pris." }
-  }
-  
-  return { 
-    success: true, 
-    message: "Compte créé ! Veuillez vérifier votre e-mail pour confirmer." 
-  }
-}
-
-export async function inlineLogout(prevState: any, formData: FormData) {
-  const supabase = createServer()
-  await supabase.auth.signOut()
-  revalidatePath('/checkout')
-  return { success: true }
 }

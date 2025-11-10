@@ -1,12 +1,7 @@
-import { createServer } from '@/lib/supabase-server'
-import CheckoutForm from './CheckoutForm' // Import the client component
+// Ce fichier n'est plus un Server Component
+// Il charge juste le formulaire
+import CheckoutForm from './CheckoutForm'
 
-// This is now a Server Component
-export default async function CheckoutPage() {
-  const supabase = createServer()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // We fetch the user's email on the server
-  // and pass it to the client component
-  return <CheckoutForm userEmail={user?.email || null} />
+export default function CheckoutPage() {
+  return <CheckoutForm />
 }

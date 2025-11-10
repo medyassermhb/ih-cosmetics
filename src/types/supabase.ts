@@ -66,7 +66,7 @@ export type Database = {
           total_dhs: number
           tracking_number: string | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -77,7 +77,7 @@ export type Database = {
           total_dhs: number
           tracking_number?: string | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -88,7 +88,7 @@ export type Database = {
           total_dhs?: number
           tracking_number?: string | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -125,36 +125,12 @@ export type Database = {
         }
         Relationships: []
       }
-      profiles: {
-        Row: {
-          full_name: string | null
-          id: string
-          phone: string | null
-          role: string
-          updated_at: string | null
-        }
-        Insert: {
-          full_name?: string | null
-          id: string
-          phone?: string | null
-          role?: string
-          updated_at?: string | null
-        }
-        Update: {
-          full_name?: string | null
-          id?: string
-          phone?: string | null
-          role?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      get_user_role: { Args: { user_id: string }; Returns: string }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

@@ -3,17 +3,18 @@
 import { useCart } from '@/lib/store/cart-store'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react' // Importer Suspense
 import { CheckCircle } from 'lucide-react'
-// Import our new component
-import { DynamicAccountLink } from '@/components/global/DynamicAccountLink'
 
-export default function CheckoutSuccessPage() {
+// --- DÉBUT DE LA CORRECTION ---
+// Cette fonction enveloppe notre logique
+// pour que Suspense puisse la gérer.
+function SuccessContent() {
   const { clearCart } = useCart()
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order_id')
 
-  // Clear the cart when this page loads
+  // Vider le panier
   useEffect(() => {
     clearCart()
   }, [clearCart])
@@ -28,17 +29,23 @@ export default function CheckoutSuccessPage() {
       <p className="mb-8">
         Vous recevrez bientôt un e-mail de confirmation.
       </p>
-
-      {/* --- THIS IS THE FIX --- */}
-      <DynamicAccountLink />
-      {/* ----------------------- */}
-
       <Link
         href="/shop"
-        className="rounded-md bg-gray-100 px-6 py-3 text-gray-700 hover:bg-gray-200"
+        className="rounded-md bg-yellow-700 px-6 py-3 text-white shadow-sm hover:bg-yellow-800"
       >
         Continuer vos achats
       </Link>
     </div>
   )
 }
+
+// L'exportation par défaut enveloppe maintenant
+// le contenu dans une Suspense Boundary.
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense fallback={<p>Chargement...</p>}>
+      <SuccessContent />
+    </Suspense>
+  )
+}
+// --- FIN DE LA CORRECTION ---
