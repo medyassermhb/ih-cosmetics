@@ -1,51 +1,69 @@
-'use client'
+import { createServer } from '@/lib/supabase-server'
+import ProductCard from '@/components/products/ProductCard'
+import ProductFilter from '@/components/products/ProductFilter'
+import { type Product } from '@/types/cart'
+import { Suspense } from 'react'
 
-import { useCart } from '@/lib/store/cart-store'
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { useEffect, Suspense } from 'react' // Importer Suspense
-import { CheckCircle } from 'lucide-react'
+// Force le rendu dynamique, corrige l'erreur "Edge Runtime"
+export const revalidate = 0
 
-// --- DÉBUT DE LA CORRECTION ---
-// Cette fonction enveloppe notre logique
-// pour que Suspense puisse la gérer.
-function SuccessContent() {
-  const { clearCart } = useCart()
-  const searchParams = useSearchParams()
-  const orderId = searchParams.get('order_id')
+export const metadata = {
+  title: 'Boutique | IH Cosmetics',
+}
 
-  // Vider le panier
-  useEffect(() => {
-    clearCart()
-  }, [clearCart])
+// searchParams est une Promise
+type ShopPageProps = {
+  searchParams: Promise<{
+    category?: string
+    gender?: string
+  }>
+}
+
+const ShopPage = async ({ searchParams }: ShopPageProps) => {
+  const supabase = createServer()
+  
+  // On "await" (attend) la Promise pour avoir l'objet
+  const { category, gender } = await searchParams
+
+  let query = supabase.from('products').select('*')
+
+  if (category && category !== 'all') {
+    query = query.eq('category', category)
+  }
+  if (gender && gender !== 'all') {
+    query = query.eq('gender', gender)
+  }
+
+  const { data: products, error } = await query.order('created_at', {
+    ascending: false,
+  })
+
+  if (error) {
+    console.error('Error fetching products:', error)
+    return <p className="text-center text-red-500">Erreur de chargement des produits.</p>
+  }
 
   return (
-    <div className="container mx-auto max-w-2xl px-4 py-16 text-center">
-      <CheckCircle size={64} className="mx-auto mb-6 text-green-500" />
-      <h1 className="mb-4 text-3xl font-bold">Merci pour votre commande !</h1>
-      <p className="mb-6 text-lg text-gray-700">
-        Votre commande (N° {orderId}) a été reçue et est en cours de traitement.
-      </p>
-      <p className="mb-8">
-        Vous recevrez bientôt un e-mail de confirmation.
-      </p>
-      <Link
-        href="/shop"
-        className="rounded-md bg-yellow-700 px-6 py-3 text-white shadow-sm hover:bg-yellow-800"
-      >
-        Continuer vos achats
-      </Link>
+    <div className="container mx-auto max-w-7xl px-4 py-12">
+      <h1 className="mb-8 text-center text-4xl font-bold">Notre Collection</h1>
+
+      <Suspense fallback={<div className="h-16" />}>
+        <ProductFilter />
+      </Suspense>
+
+      {products.length === 0 ? (
+        <p className="text-center text-gray-500">
+          Aucun produit ne correspond à vos critères.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:gap-x-8">
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product as Product} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-// L'exportation par défaut enveloppe maintenant
-// le contenu dans une Suspense Boundary.
-export default function CheckoutSuccessPage() {
-  return (
-    <Suspense fallback={<p>Chargement...</p>}>
-      <SuccessContent />
-    </Suspense>
-  )
-}
-// --- FIN DE LA CORRECTION ---
+export default ShopPage
