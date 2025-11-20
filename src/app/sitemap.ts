@@ -5,25 +5,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.SITE_URL || 'https://ih-cosmetics.vercel.app'
   const supabase = createServer()
 
-  // 1. Get all products
+  // 1. Récupérer tous les produits
+  // CORRECTION : On utilise 'created_at' au lieu de 'updated_at'
   const { data: products } = await supabase
     .from('products')
-    .select('id, updated_at') // We only need the ID
+    .select('id, created_at') 
 
   const productEntries: MetadataRoute.Sitemap = (products || []).map((product) => ({
     url: `${siteUrl}/product/${product.id}`,
-    // We don't have an 'updated_at' on products, so we'll use a default
-    // lastModified: product.updated_at ? new Date(product.updated_at) : new Date(), 
+    // On utilise la date de création pour le SEO
+    lastModified: product.created_at ? new Date(product.created_at) : new Date(), 
   }));
 
-  // 2. Define your static pages
+  // 2. Définir les pages statiques
   const staticRoutes = [
     { url: `${siteUrl}/`, lastModified: new Date() },
     { url: `${siteUrl}/shop`, lastModified: new Date() },
     { url: `${siteUrl}/contact`, lastModified: new Date() },
   ]
  
-  // 3. Combine them and return
+  // 3. Combiner et retourner
   return [
     ...staticRoutes,
     ...productEntries
