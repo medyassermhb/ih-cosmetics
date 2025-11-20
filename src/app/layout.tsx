@@ -22,8 +22,10 @@ export const metadata: Metadata = {
   },
   description: 'Découvrez notre collection de parfums, gommages, et déodorants bio. Fait à la main au Maroc.',
 
-  icons: {
-    icon: '/logo.svg',
+icons: {
+    // Adding ?v=2 forces the browser to re-download the image
+    icon: '/logo.svg?v=2',
+    apple: '/logo.svg?v=2', // Also update for iPhones/iPads
   },
   
   // Open Graph (OG) tags for social media
