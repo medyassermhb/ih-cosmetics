@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     template: '%s | IH Cosmetics',
   },
   description: 'Découvrez notre collection de parfums, gommages, et déodorants bio. Fait à la main au Maroc.',
+
+  icons: {
+    icon: '/logo.svg',
+  },
   
   // Open Graph (OG) tags for social media
   openGraph: {
