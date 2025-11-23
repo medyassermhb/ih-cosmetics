@@ -2,11 +2,7 @@ import { adminDb } from '@/lib/supabase-admin'
 import { cookies } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Printer } from 'lucide-react'
-
-// --- Composant Client pour le bouton d'impression ---
-// On le met ici pour simplifier, c'est un petit trick Next.js
-import ClientPrintButton from './ClientPrintButton' 
+import ClientPrintButton from './ClientPrintButton'
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   // 1. Sécurité : Vérifier le cookie Admin
@@ -32,7 +28,13 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   }
 
   const address = order.shipping_address as any
-  const date = new Date(order.created_at).toLocaleDateString('fr-FR')
+  
+  // --- CORRECTION ICI ---
+  // On vérifie si created_at existe avant de créer la Date
+  const date = order.created_at 
+    ? new Date(order.created_at).toLocaleDateString('fr-FR')
+    : 'Date inconnue'
+  // ----------------------
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 font-sans text-black print:bg-white print:p-0">
@@ -41,8 +43,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         <Link href="/admin" className="rounded bg-gray-200 px-4 py-2 text-sm hover:bg-gray-300">
           &larr; Retour
         </Link>
-        <ClientPrintButton order={order} />      
-        </div>
+        <ClientPrintButton order={order} />
+      </div>
 
       {/* La Feuille A4 */}
       <div className="mx-auto max-w-[210mm] bg-white p-12 shadow-lg print:max-w-none print:shadow-none">
