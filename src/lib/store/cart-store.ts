@@ -9,33 +9,46 @@ export const useCart = create<CartStore>()(
       items: [],
       isOpen: false,
 
-      // Actions
       openModal: () => set({ isOpen: true }),
       closeModal: () => set({ isOpen: false }),
 
-      addItem: (product: Product) => {
+      // Mise à jour : accepte les sous-produits et la description
+      addItem: (product: Product, childProductIds?: string[], customDescription?: string) => {
         const currentItems = get().items
-        const existingItem = currentItems.find(
-          (item) => item.product.id === product.id
-        )
+        
+        // Pour les coffrets, on utilise un ID unique basé sur le temps pour éviter de fusionner
+        // des coffrets différents. Pour les produits normaux, on utilise l'ID du produit.
+        const uniqueId = childProductIds ? `${product.id}-${Date.now()}` : product.id
+        
+        // On crée un clone du produit avec cet ID unique si c'est un coffret
+        const productToAdd = childProductIds ? { ...product, id: uniqueId } : product
+
+        const existingItem = currentItems.find((item) => item.product.id === uniqueId)
 
         if (existingItem) {
-          // If item already in cart, increment quantity
           set({
             items: currentItems.map((item) =>
-              item.product.id === product.id
+              item.product.id === uniqueId
                 ? { ...item, quantity: item.quantity + 1 }
                 : item
             ),
           })
-          toast.success('Item quantity increased')
+          toast.success('Quantité mise à jour')
         } else {
-          // If new item, add to cart
-          set({ items: [...currentItems, { product, quantity: 1 }] })
-          toast.success('Item added to cart')
+          set({
+            items: [
+              ...currentItems,
+              { 
+                product: productToAdd, 
+                quantity: 1,
+                childProductIds,      // Sauvegarde les IDs
+                customDescription     // Sauvegarde la description
+              }
+            ]
+          })
+          toast.success('Ajouté au panier')
         }
         
-        // Open cart modal when item is added
         get().openModal()
       },
 
@@ -43,12 +56,11 @@ export const useCart = create<CartStore>()(
         set({
           items: get().items.filter((item) => item.product.id !== productId),
         })
-        toast.error('Item removed from cart')
+        toast.error('Retiré du panier')
       },
 
       updateQuantity: (productId: string, quantity: number) => {
         if (quantity < 1) {
-          // If quantity is 0 or less, remove the item
           get().removeItem(productId)
         } else {
           set({
@@ -56,13 +68,11 @@ export const useCart = create<CartStore>()(
               item.product.id === productId ? { ...item, quantity } : item
             ),
           })
-          toast.success('Quantity updated')
         }
       },
 
       clearCart: () => set({ items: [] }),
 
-      // Selectors (computed values)
       getCartCount: () => {
         return get().items.reduce((total, item) => total + item.quantity, 0)
       },
@@ -74,7 +84,7 @@ export const useCart = create<CartStore>()(
       },
     }),
     {
-      name: 'ih-cart-storage', // name of the item in localStorage
+      name: 'ih-cart-storage',
     }
   )
 )

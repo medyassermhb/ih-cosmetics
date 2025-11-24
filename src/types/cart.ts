@@ -1,19 +1,24 @@
 import { Database } from './supabase'
 
-// A product from the 'products' table
+// Un produit standard
 export type Product = Database['public']['Tables']['products']['Row']
 
-// A cart item, which is a product plus a quantity
+// Un article du panier
 export type CartItem = {
   product: Product
   quantity: number
+  // NOUVEAUX CHAMPS
+  // Liste des IDs des produits inclus dans ce pack (ex: les 3 parfums)
+  childProductIds?: string[] 
+  // Description textuelle (ex: "Contient: Parfum A, Parfum B...")
+  customDescription?: string 
 }
 
-// The state and actions for our cart store
 export type CartStore = {
   items: CartItem[]
   isOpen: boolean
-  addItem: (product: Product) => void
+  // La fonction addItem accepte maintenant des options supplémentaires
+  addItem: (product: Product, childProductIds?: string[], customDescription?: string) => void
   removeItem: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
   clearCart: () => void

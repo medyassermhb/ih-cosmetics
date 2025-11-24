@@ -5,88 +5,21 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import * as nodemailer from 'nodemailer'
 
-// Schéma de validation pour l'invité
-const shippingSchema = z.object({
-  email: z.string().email({ message: 'E-mail invalide.' }),
-  name: z.string().min(3, { message: 'Le nom est requis' }),
-  phone: z.string().min(10, { message: 'Le téléphone est requis' }),
-  address: z.string().min(5, { message: "L'adresse est requise" }),
-  city: z.string().min(2, { message: 'La ville est requise' }),
-  
-  // --- DÉBUT DE LA CORRECTION ---
-  country: z.literal('Morocco', {
-    message: 'Seul le Maroc est disponible',
-  }),
-  // --- FIN DE LA CORRECTION ---
-})
+// ... (imports et schémas inchangés)
+
+// Mettre à jour le schéma pour accepter childProductIds
 const cartItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().int().positive(),
+  childProductIds: z.array(z.string()).optional(), // <-- NOUVEAU
+  customDescription: z.string().optional()         // <-- NOUVEAU
 })
 
-// Fonction Email HTML (inchangée)
-function getEmailHtml(order: any, shipping: any, items: any[], products: any[], totalDHS: number) {
-  let itemsHtml = items.map(item => {
-    const product = products.find(p => p.id === item.product_id)
-    return `
-      <div style="display: flex; align-items: center; margin-bottom: 15px;">
-        <img src="${product.image_url}" alt="${product.name}" width="60" style="border-radius: 5px; margin-right: 15px;">
-        <div style="flex: 1;">
-          <strong style="font-size: 14px;">${product.name}</strong>
-          <div style="font-size: 12px; color: #555;">Qté: ${item.quantity}</div>
-        </div>
-        <div style="font-size: 14px; font-weight: bold;">
-          ${(item.unit_price_dhs * item.quantity).toFixed(2)} DHS
-        </div>
-      </div>
-    `
-  }).join('')
-
-  return `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-      <h1 style="color: #B8860B; text-align: center;">IH Cosmetics</h1>
-      <h2 style="font-size: 24px; color: #333;">Merci pour votre commande !</h2>
-      <p>Bonjour ${shipping.name}, votre commande a été reçue.</p>
-      <p><strong>Commande N°:</strong> ${order.id.substring(0, 8)}</p>
-      
-      <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px;">
-        <h3 style="font-size: 18px;">Résumé de la commande</h3>
-        ${itemsHtml}
-      </div>
-      
-      <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 10px;">
-        <div style="display: flex; justify-content: space-between;">
-          <span>Sous-total:</span>
-          <strong>${totalDHS.toFixed(2)} DHS</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span>Livraison:</span>
-          <strong>Gratuite</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 18px; margin-top: 10px;">
-          <strong>Total:</strong>
-          <strong>${totalDHS.toFixed(2)} DHS</strong>
-        </div>
-      </div>
-      
-      <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px;">
-        <h3 style="font-size: 18px;">Adresse de livraison</h3>
-        <p style="margin: 0;">${shipping.name}</p>
-        <p style="margin: 0;">${shipping.address}</p>
-        <p style="margin: 0;">${shipping.city}, Maroc</p>
-        <p style="margin: 0;">${shipping.phone}</p>
-      </div>
-    </div>
-  `
-}
-
-// Action de création de commande (simplifiée)
-export async function createOrder(
-  prevState: any,
-  formData: FormData
-): Promise<{ error?: string; errors?: any; success?: boolean }> {
+export async function createOrder(prevState: any, formData: FormData): Promise<any> {
   const supabase = createServer()
   
+  // ... (Récupération shippingData et validation shippingSchema inchangées) ...
+  // Copiez le code de validation shipping existant ici...
   const shippingData = {
     email: formData.get('email'),
     name: formData.get('name'),
@@ -95,57 +28,91 @@ export async function createOrder(
     city: formData.get('city'),
     country: formData.get('country'),
   }
-
   const validatedFields = shippingSchema.safeParse(shippingData)
-
   if (!validatedFields.success) {
-    return {
-      error: 'Formulaire invalide. Veuillez vérifier vos informations.',
-      errors: validatedFields.error.flatten().fieldErrors,
-    }
+    return { error: 'Formulaire invalide', errors: validatedFields.error.flatten().fieldErrors }
   }
-  
   const orderEmail = validatedFields.data.email
+
+  // --- NOUVELLE LOGIQUE DE VALIDATION DES PRIX ---
   const cartItemsPayload = formData.get('cartItems') as string
-  if (!cartItemsPayload) return { error: 'Votre panier est vide.' }
-  
+  if (!cartItemsPayload) return { error: 'Panier vide' }
+
   let clientCartItems: z.infer<typeof cartItemSchema>[]
   try {
-    clientCartItems = JSON.parse(cartItemsPayload).map((item: any) =>
-      cartItemSchema.parse(item)
-    )
-  } catch (e) {
-    return { error: 'Erreur de données du panier.' }
-  }
+    clientCartItems = JSON.parse(cartItemsPayload)
+  } catch (e) { return { error: 'Erreur panier' } }
 
-  const productIds = clientCartItems.map((item) => item.productId)
-  const { data: products, error: productError } = await supabase
+  // 1. Collecter TOUS les IDs (produits normaux + contenus des coffrets)
+  let allProductIds: string[] = []
+  clientCartItems.forEach(item => {
+    if (item.childProductIds && item.childProductIds.length > 0) {
+      // C'est un coffret : on vérifie les produits à l'intérieur
+      allProductIds.push(...item.childProductIds)
+    } else {
+      // C'est un produit normal
+      allProductIds.push(item.productId)
+    }
+  })
+
+  // 2. Récupérer les vrais prix depuis la BDD
+  const { data: products, error: pError } = await supabase
     .from('products')
-    .select('id, name, price, image_url')
-    .in('id', productIds)
+    .select('id, price, name, image_url')
+    .in('id', allProductIds)
 
-  if (productError || !products) {
-    return { error: 'Erreur lors de la vérification des produits.' }
-  }
+  if (pError || !products) return { error: 'Erreur produits' }
 
+  // 3. Calculer le total et préparer les items
   let totalDHS = 0
   const orderItemsData = []
-  for (const item of clientCartItems) {
-    const product = products.find((p) => p.id === item.productId)
-    if (!product) return { error: `Produit ${item.productId} non trouvé.` }
-    totalDHS += product.price * item.quantity
-    orderItemsData.push({
-      product_id: product.id,
-      quantity: item.quantity,
-      unit_price_dhs: product.price,
-    })
-  }
 
+  for (const item of clientCartItems) {
+    if (item.childProductIds && item.childProductIds.length > 0) {
+      // --- C'EST UN COFFRET ---
+      // On doit recréer le prix du coffret en additionnant ses composants
+      let boxPrice = 0
+      
+      // On ajoute CHAQUE sous-produit comme une ligne de commande individuelle
+      // pour que le stock et les stats soient corrects
+      for (const childId of item.childProductIds) {
+        const realProduct = products.find(p => p.id === childId)
+        if (!realProduct) return { error: `Produit introuvable dans le coffret` }
+        
+        boxPrice += realProduct.price
+        
+        // On ajoute l'article individuel à la commande
+        orderItemsData.push({
+          product_id: realProduct.id,
+          quantity: item.quantity, // Si j'ai pris 2 coffrets, j'ai pris 2x ce parfum
+          unit_price_dhs: realProduct.price
+        })
+      }
+      totalDHS += boxPrice * item.quantity
+
+    } else {
+      // --- C'EST UN PRODUIT NORMAL ---
+      const realProduct = products.find(p => p.id === item.productId)
+      if (!realProduct) return { error: `Produit ${item.productId} introuvable` }
+      
+      totalDHS += realProduct.price * item.quantity
+      orderItemsData.push({
+        product_id: realProduct.id,
+        quantity: item.quantity,
+        unit_price_dhs: realProduct.price
+      })
+    }
+  }
+  // --- FIN DE LA NOUVELLE LOGIQUE ---
+
+  // ... (Le reste : Insertion Order, Order Items, Email, Redirect est inchangé) ...
+  // Copiez le reste de votre fonction createOrder ici (try/catch insert...)
+  
   try {
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: null, 
+        user_id: null,
         total_dhs: totalDHS,
         shipping_address: validatedFields.data,
         status: 'received',
@@ -153,9 +120,7 @@ export async function createOrder(
       .select()
       .single()
 
-    if (orderError || !newOrder) {
-      throw new Error(orderError?.message || 'Failed to create order')
-    }
+    if (orderError || !newOrder) throw new Error('Failed to create order')
 
     const itemsWithOrderId = orderItemsData.map((item) => ({
       ...item,
@@ -168,32 +133,12 @@ export async function createOrder(
 
     if (itemsError) throw itemsError
     
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_SERVER_USER,
-        pass: process.env.EMAIL_SERVER_PASSWORD,
-      },
-    })
+    // Send Email Logic (Keep your Nodemailer code here)
+    // ...
 
-    const emailHtml = getEmailHtml(newOrder, validatedFields.data, orderItemsData, products, totalDHS)
-
-    await transporter.sendMail({
-      from: `"IH Cosmetics" <${process.env.EMAIL_SERVER_USER}>`,
-      to: orderEmail,
-      subject: `Confirmation de commande #${newOrder.id.substring(0, 8)}`,
-      html: emailHtml,
-    })
-    
   } catch (error: any) {
-    console.error('Transaction Error:', error.message)
-    if (error.code === 'EAUTH') {
-      console.error('Email sending failed: Invalid Gmail credentials. Check App Password.')
-    } else if (error.message.includes('Nodemailer')) {
-      console.error('Email sending failed:', error.message)
-    } else {
-      return { error: `Impossible de passer la commande : ${error.message}` }
-    }
+    console.error(error)
+    return { error: error.message }
   }
   
   const orderTimestamp = new Date().getTime()

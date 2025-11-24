@@ -24,7 +24,7 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
       setSelectedProducts((prev) => prev.filter((p) => p.id !== product.id))
     } else {
       if (selectedProducts.length >= BOX_LIMIT) {
-        toast.error(`Vous ne pouvez choisir que ${BOX_LIMIT} produits.`)
+        toast.error(`Maximum ${BOX_LIMIT} produits.`)
         return
       }
       setSelectedProducts((prev) => [...prev, product])
@@ -33,15 +33,34 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
 
   const handleAddBoxToCart = () => {
     if (selectedProducts.length !== BOX_LIMIT) {
-      toast.error(`Veuillez sélectionner ${BOX_LIMIT} produits pour valider le coffret.`)
+      toast.error(`Veuillez sélectionner ${BOX_LIMIT} produits.`)
       return
     }
 
-    selectedProducts.forEach((product) => {
-      addItem(product)
-    })
+    const totalPrice = selectedProducts.reduce((sum, p) => sum + p.price, 0)
+    const productNames = selectedProducts.map(p => p.name).join(', ')
+    const productIds = selectedProducts.map(p => p.id)
 
-    toast.success('Coffret ajouté au panier !')
+    // Création d'un "Produit Virtuel" pour le panier
+    const boxProduct: Product = {
+      id: 'coffret-custom', // ID temporaire (sera rendu unique par le store)
+      name: 'Coffret Personnalisé (3 Parfums)',
+      description: 'Coffret composé sur mesure',
+      price: totalPrice,
+      category: 'box',
+      gender: 'unisex',
+      image_url: selectedProducts[0].image_url, // On prend l'image du 1er produit
+      created_at: new Date().toISOString()
+    }
+
+    // Ajout au panier en tant que "Pack"
+    addItem(
+      boxProduct, 
+      productIds, // On passe les IDs des vrais produits pour la validation serveur
+      `Contient : ${productNames}` // Description pour l'affichage
+    )
+
+    // Reset
     setSelectedProducts([])
   }
 
@@ -49,7 +68,6 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
 
   return (
     <div>
-      {/* Barre du bas */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="container mx-auto flex max-w-7xl items-center justify-between">
           <div>
@@ -72,13 +90,12 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
               disabled={selectedProducts.length !== BOX_LIMIT}
               className="rounded-md bg-yellow-700 px-6 py-3 font-bold text-white transition-colors hover:bg-yellow-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
             >
-              Ajouter au panier
+              Ajouter le Coffret
             </button>
           </div>
         </div>
       </div>
 
-      {/* Grille de produits */}
       <div className="grid grid-cols-1 gap-6 pb-32 sm:grid-cols-2 lg:grid-cols-3">
         {products.map((product) => {
           const isSelected = selectedProducts.find((p) => p.id === product.id)
@@ -95,25 +112,21 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
                 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
               `}
             >
-              {/* Indicateur de sélection */}
               <div className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors
                 ${isSelected ? 'bg-yellow-700 text-white' : 'bg-gray-200 text-gray-400'}
               `}>
                 {isSelected ? <Check size={18} /> : <Plus size={18} />}
               </div>
 
-              {/* --- CORRECTION DE L'IMAGE ICI --- */}
-              {/* On utilise h-64 (hauteur fixe) pour forcer l'affichage de l'image */}
               <div className="relative h-64 w-full bg-gray-100">
                 <Image
                   src={product.image_url || '/placeholder.png'}
                   alt={product.name}
                   fill
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  unoptimized // Important pour Supabase
+                  unoptimized
                 />
               </div>
-              {/* --------------------------------- */}
               
               <div className="p-4">
                 <h3 className="font-bold text-gray-900">{product.name}</h3>

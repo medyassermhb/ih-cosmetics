@@ -77,6 +77,11 @@ const CartModal = () => {
                     />
                     <div className="flex-1">
                       <h3 className="font-medium">{item.product.name}</h3>
+                      {item.customDescription && (
+                        <p className="mt-1 text-xs italic text-gray-600">
+                          {item.customDescription}
+                        </p>
+                      )}
                       <p className="text-sm text-gray-500">
                         {item.product.price} DHS
                       </p>
