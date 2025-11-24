@@ -16,10 +16,9 @@ const shippingSchema = z.object({
   city: z.string().min(2, { message: 'La ville est requise' }),
   
   // --- CORRECTION ICI ---
-  // On utilise 'invalid_type_error' ou 'message' au lieu de errorMap
-  country: z.literal('Morocco', {
-    invalid_type_error: 'Seul le Maroc est disponible',
-    required_error: 'Le pays est requis',
+  // On utilise refine() pour valider la valeur 'Morocco' avec un message personnalisé
+  country: z.string().refine((val) => val === 'Morocco', {
+    message: 'Seul le Maroc est disponible',
   }),
   // ---------------------
 })
@@ -244,7 +243,7 @@ export async function createOrder(
   redirect(`/checkout/success?order_id=${orderTimestamp}`)
 }
 
-// Dummy exports pour éviter les erreurs d'import si elles existent encore ailleurs
+// Dummy exports pour éviter les erreurs d'import
 export async function inlineLogin() { return { success: false } }
 export async function inlineSignup() { return { success: false } }
 export async function inlineLogout() { return { success: false } }
