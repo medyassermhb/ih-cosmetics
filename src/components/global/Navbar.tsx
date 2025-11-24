@@ -30,7 +30,7 @@ const Navbar = () => {
             <Link href="/shop" className="text-sm font-medium text-gray-700 hover:text-yellow-600">
               Boutique
             </Link>
-            <Link href="/box" className="text-sm font-bold text-yellow-700 hover:text-yellow-600">
+            <Link href="/box" className="text-sm font-medium text-gray-700 hover:text-yellow-600">
               Coffret
             </Link>
             <Link href="/contact" className="text-sm font-medium text-gray-700 hover:text-yellow-600">
