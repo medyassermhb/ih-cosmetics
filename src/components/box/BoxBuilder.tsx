@@ -12,21 +12,17 @@ type BoxBuilderProps = {
 }
 
 export default function BoxBuilder({ products }: BoxBuilderProps) {
-  // État pour stocker les produits sélectionnés
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
   const { addItem } = useCart()
 
-  const BOX_LIMIT = 3 // Limite de 3 produits
+  const BOX_LIMIT = 3
 
-  // Gérer la sélection
   const toggleProduct = (product: Product) => {
     const isSelected = selectedProducts.find((p) => p.id === product.id)
 
     if (isSelected) {
-      // Si déjà sélectionné, on le retire
       setSelectedProducts((prev) => prev.filter((p) => p.id !== product.id))
     } else {
-      // Si pas sélectionné
       if (selectedProducts.length >= BOX_LIMIT) {
         toast.error(`Vous ne pouvez choisir que ${BOX_LIMIT} produits.`)
         return
@@ -35,29 +31,25 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
     }
   }
 
-  // Ajouter tout le coffret au panier
   const handleAddBoxToCart = () => {
     if (selectedProducts.length !== BOX_LIMIT) {
       toast.error(`Veuillez sélectionner ${BOX_LIMIT} produits pour valider le coffret.`)
       return
     }
 
-    // Ajouter chaque produit au panier
     selectedProducts.forEach((product) => {
       addItem(product)
     })
 
     toast.success('Coffret ajouté au panier !')
-    // Optionnel : Vider la sélection après l'ajout
     setSelectedProducts([])
   }
 
-  // Calcul du total actuel
   const currentTotal = selectedProducts.reduce((sum, p) => sum + p.price, 0)
 
   return (
     <div>
-      {/* Barre de progression flottante en bas (Mobile & Desktop) */}
+      {/* Barre du bas */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="container mx-auto flex max-w-7xl items-center justify-between">
           <div>
@@ -110,15 +102,18 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
                 {isSelected ? <Check size={18} /> : <Plus size={18} />}
               </div>
 
-              <div className="aspect-h-4 aspect-w-3 relative bg-gray-200">
+              {/* --- CORRECTION DE L'IMAGE ICI --- */}
+              {/* On utilise h-64 (hauteur fixe) pour forcer l'affichage de l'image */}
+              <div className="relative h-64 w-full bg-gray-100">
                 <Image
                   src={product.image_url || '/placeholder.png'}
                   alt={product.name}
                   fill
-                  className="object-cover"
-                  unoptimized
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  unoptimized // Important pour Supabase
                 />
               </div>
+              {/* --------------------------------- */}
               
               <div className="p-4">
                 <h3 className="font-bold text-gray-900">{product.name}</h3>
