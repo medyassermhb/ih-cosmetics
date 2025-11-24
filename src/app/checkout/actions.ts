@@ -4,28 +4,32 @@ import { createServer } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import * as nodemailer from 'nodemailer'
-import { revalidatePath } from 'next/cache'
 
 // --- SCHÉMAS DE VALIDATION ---
 
-// 1. Schéma de livraison
+// 1. Schéma de livraison (CORRIGÉ)
 const shippingSchema = z.object({
   email: z.string().email({ message: 'E-mail invalide.' }),
   name: z.string().min(3, { message: 'Le nom est requis' }),
   phone: z.string().min(10, { message: 'Le téléphone est requis' }),
   address: z.string().min(5, { message: "L'adresse est requise" }),
   city: z.string().min(2, { message: 'La ville est requise' }),
+  
+  // --- CORRECTION ICI ---
+  // On utilise 'invalid_type_error' ou 'message' au lieu de errorMap
   country: z.literal('Morocco', {
-    errorMap: () => ({ message: 'Seul le Maroc est disponible' }),
+    invalid_type_error: 'Seul le Maroc est disponible',
+    required_error: 'Le pays est requis',
   }),
+  // ---------------------
 })
 
-// 2. Schéma du panier (Mis à jour pour les coffrets)
+// 2. Schéma du panier
 const cartItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().int().positive(),
-  childProductIds: z.array(z.string()).optional(), // Pour les coffrets
-  customDescription: z.string().optional()         // Pour la description
+  childProductIds: z.array(z.string()).optional(),
+  customDescription: z.string().optional()
 })
 
 // --- HELPER EMAIL ---
@@ -91,7 +95,6 @@ export async function createOrder(
 ): Promise<{ error?: string; errors?: any; success?: boolean }> {
   const supabase = createServer()
   
-  // Récupérer les données du formulaire
   const shippingData = {
     email: formData.get('email'),
     name: formData.get('name'),
@@ -101,7 +104,6 @@ export async function createOrder(
     country: formData.get('country'),
   }
 
-  // Valider les données de livraison
   const validatedFields = shippingSchema.safeParse(shippingData)
 
   if (!validatedFields.success) {
@@ -112,8 +114,6 @@ export async function createOrder(
   }
   
   const orderEmail = validatedFields.data.email
-
-  // Récupérer et parser le panier
   const cartItemsPayload = formData.get('cartItems') as string
   if (!cartItemsPayload) return { error: 'Votre panier est vide.' }
   
@@ -126,7 +126,7 @@ export async function createOrder(
     return { error: 'Erreur de données du panier.' }
   }
 
-  // 1. Collecter TOUS les IDs (produits normaux + contenus des coffrets)
+  // 1. Collecter TOUS les IDs
   let allProductIds: string[] = []
   clientCartItems.forEach(item => {
     if (item.childProductIds && item.childProductIds.length > 0) {
@@ -136,7 +136,7 @@ export async function createOrder(
     }
   })
 
-  // 2. Récupérer les vrais produits depuis la BDD
+  // 2. Récupérer les vrais produits
   const { data: products, error: productError } = await supabase
     .from('products')
     .select('id, name, price, image_url')
@@ -146,13 +146,13 @@ export async function createOrder(
     return { error: 'Erreur lors de la vérification des produits.' }
   }
 
-  // 3. Calculer le total et préparer les items
+  // 3. Calculer le total
   let totalDHS = 0
   const orderItemsData = []
 
   for (const item of clientCartItems) {
     if (item.childProductIds && item.childProductIds.length > 0) {
-      // --- LOGIQUE COFFRET ---
+      // LOGIQUE COFFRET
       let boxPrice = 0
       for (const childId of item.childProductIds) {
         const realProduct = products.find(p => p.id === childId)
@@ -160,7 +160,6 @@ export async function createOrder(
         
         boxPrice += realProduct.price
         
-        // On ajoute l'article individuel à la commande
         orderItemsData.push({
           product_id: realProduct.id,
           quantity: item.quantity,
@@ -170,7 +169,7 @@ export async function createOrder(
       totalDHS += boxPrice * item.quantity
 
     } else {
-      // --- LOGIQUE PRODUIT NORMAL ---
+      // LOGIQUE PRODUIT NORMAL
       const realProduct = products.find(p => p.id === item.productId)
       if (!realProduct) return { error: `Produit ${item.productId} introuvable` }
       
@@ -200,13 +199,12 @@ export async function createOrder(
       throw new Error(orderError?.message || 'Failed to create order')
     }
 
-    // Lier les items à la commande
+    // Lier les items
     const itemsWithOrderId = orderItemsData.map((item) => ({
       ...item,
       order_id: newOrder.id,
     }))
 
-    // Insérer les items
     const { error: itemsError } = await supabase
       .from('order_items')
       .insert(itemsWithOrderId)
@@ -246,13 +244,7 @@ export async function createOrder(
   redirect(`/checkout/success?order_id=${orderTimestamp}`)
 }
 
-// --- ACTIONS INLINE (Non utilisées actuellement car mode invité, mais gardées pour compatibilité) ---
-export async function inlineLogin(prevState: any, formData: FormData) {
-  return { success: false }
-}
-export async function inlineSignup(prevState: any, formData: FormData) {
-  return { success: false }
-}
-export async function inlineLogout(prevState: any, formData: FormData) {
-  return { success: false }
-}
+// Dummy exports pour éviter les erreurs d'import si elles existent encore ailleurs
+export async function inlineLogin() { return { success: false } }
+export async function inlineSignup() { return { success: false } }
+export async function inlineLogout() { return { success: false } }
