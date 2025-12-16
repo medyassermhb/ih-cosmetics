@@ -12,10 +12,10 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      // Allow specific origins to prevent 403 errors
+      // 1. Prevent 403 Forbidden errors
       allowedOrigins: ['ih-cosmetics.vercel.app', 'localhost:3000'],
-      // Increase body size limit to 5MB (default is 1MB)
-      bodySizeLimit: '5mb',
+      // 2. Fix 413 Content Too Large (Default is 1mb)
+      bodySizeLimit: '10mb',
     },
   },
 }
