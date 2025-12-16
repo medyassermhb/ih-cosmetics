@@ -10,6 +10,12 @@ const nextConfig = {
       },
     ],
   },
+  // Add this to allow Server Actions from your specific domain
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['ih-cosmetics.vercel.app', 'localhost:3000'],
+    },
+  },
 }
 
 module.exports = nextConfig
