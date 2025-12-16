@@ -10,10 +10,12 @@ const nextConfig = {
       },
     ],
   },
-  // Add this to allow Server Actions from your specific domain
   experimental: {
     serverActions: {
+      // Allow specific origins to prevent 403 errors
       allowedOrigins: ['ih-cosmetics.vercel.app', 'localhost:3000'],
+      // Increase body size limit to 5MB (default is 1MB)
+      bodySizeLimit: '5mb',
     },
   },
 }
