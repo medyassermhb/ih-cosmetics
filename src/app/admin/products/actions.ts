@@ -5,73 +5,87 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 
+// --- 1. ADD PRODUCT (Secured) ---
 export async function addProduct(formData: FormData) {
-  // 1. SECURITY: Verify Admin Session
+  // A. Security Check
   const cookieStore = await cookies()
   const isAdmin = cookieStore.get('admin_session')?.value === 'true'
-  
+
   if (!isAdmin) {
-    console.error('Unauthorized access attempt')
-    throw new Error('Unauthorized')
+    throw new Error('Unauthorized: Admin access required')
   }
 
-  try {
-    const name = formData.get('name') as string
-    const price = parseFloat(formData.get('price') as string)
-    const category = formData.get('category') as string
-    const gender = formData.get('gender') as string
-    const description = formData.get('description') as string
-    const imageFile = formData.get('image') as File
+  // B. Parse Data
+  const name = formData.get('name') as string
+  const price = parseFloat(formData.get('price') as string)
+  const category = formData.get('category') as string
+  const gender = formData.get('gender') as string
+  const description = formData.get('description') as string
+  const imageFile = formData.get('image') as File
 
-    let image_url = ''
+  let image_url = ''
 
-    // 2. Upload Image
-    if (imageFile && imageFile.size > 0) {
-      const filename = `${Date.now()}-${imageFile.name.replace(/[^a-zA-Z0-9.-]/g, '')}`
-      
-      const { data, error: uploadError } = await adminDb.storage
-        .from('product-images')
-        .upload(filename, imageFile, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (uploadError) {
-        console.error('Supabase Storage Error:', uploadError)
-        throw new Error(`Upload failed: ${uploadError.message}`)
-      }
-
-      const { data: publicUrlData } = adminDb.storage
-        .from('product-images')
-        .getPublicUrl(filename)
-        
-      image_url = publicUrlData.publicUrl
-    }
-
-    // 3. Insert into DB
-    const { error: dbError } = await adminDb
-      .from('products')
-      .insert({
-        name,
-        price,
-        category,
-        gender,
-        description,
-        image_url
+  // C. Upload Image
+  if (imageFile && imageFile.size > 0) {
+    // Sanitize filename to prevent issues
+    const filename = `${Date.now()}-${imageFile.name.replace(/[^a-zA-Z0-9.-]/g, '')}`
+    
+    const { error: uploadError } = await adminDb.storage
+      .from('product-images')
+      .upload(filename, imageFile, {
+        cacheControl: '3600',
+        upsert: false
       })
 
-    if (dbError) {
-      console.error('Database Insert Error:', dbError)
-      throw new Error(`Database error: ${dbError.message}`)
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      throw new Error('Image upload failed')
     }
 
-  } catch (err) {
-    // This will show up in your Vercel Function Logs
-    console.error('SERVER ACTION ERROR:', err)
-    throw err // Re-throw to show error to client
+    // Get Public URL
+    const { data: publicUrlData } = adminDb.storage
+      .from('product-images')
+      .getPublicUrl(filename)
+      
+    image_url = publicUrlData.publicUrl
   }
 
+  // D. Insert into DB
+  const { error: dbError } = await adminDb
+    .from('products')
+    .insert({
+      name,
+      price,
+      category,
+      gender,
+      description,
+      image_url
+    })
+
+  if (dbError) {
+    console.error('Database Error:', dbError)
+    throw new Error('Database insert failed')
+  }
+
+  // E. Redirect
   revalidatePath('/admin/products')
   revalidatePath('/shop')
   redirect('/admin/products')
+}
+
+// --- 2. DELETE PRODUCT (Restored) ---
+export async function deleteProduct(formData: FormData) {
+  // Optional: Add the same security check here if you want strict security
+  const cookieStore = await cookies()
+  const isAdmin = cookieStore.get('admin_session')?.value === 'true'
+
+  if (!isAdmin) {
+    throw new Error('Unauthorized')
+  }
+
+  const id = formData.get('id') as string
+  await adminDb.from('products').delete().eq('id', id)
+  
+  revalidatePath('/admin/products')
+  revalidatePath('/shop')
 }
