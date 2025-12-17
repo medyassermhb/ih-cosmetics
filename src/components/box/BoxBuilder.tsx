@@ -11,11 +11,14 @@ type BoxBuilderProps = {
   products: Product[]
 }
 
+// --- CONFIGURATION ---
+const BOX_LIMIT = 3
+const BOX_PRICE = 299 // <--- CHANGE THIS TO YOUR DESIRED FIXED PRICE (e.g. 250, 300)
+// ---------------------
+
 export default function BoxBuilder({ products }: BoxBuilderProps) {
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
   const { addItem } = useCart()
-
-  const BOX_LIMIT = 3
 
   const toggleProduct = (product: Product) => {
     const isSelected = selectedProducts.find((p) => p.id === product.id)
@@ -37,34 +40,33 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
       return
     }
 
-    const totalPrice = selectedProducts.reduce((sum, p) => sum + p.price, 0)
     const productNames = selectedProducts.map(p => p.name).join(', ')
     const productIds = selectedProducts.map(p => p.id)
 
-    // Création d'un "Produit Virtuel" pour le panier
+    // Create the "Box Product" with the FIXED PRICE
     const boxProduct: Product = {
-      id: 'coffret-custom', // ID temporaire (sera rendu unique par le store)
-      name: 'Coffret Personnalisé (3 Parfums)',
+      id: 'coffret-custom',
+      name: `Coffret Personnalisé (${BOX_LIMIT} Parfums)`,
       description: 'Coffret composé sur mesure',
-      price: totalPrice,
+      price: BOX_PRICE, // <--- Uses the fixed price here
       category: 'box',
       gender: 'unisex',
-      image_url: selectedProducts[0].image_url, // On prend l'image du 1er produit
+      image_url: selectedProducts[0].image_url,
       created_at: new Date().toISOString()
     }
 
-    // Ajout au panier en tant que "Pack"
     addItem(
       boxProduct, 
-      productIds, // On passe les IDs des vrais produits pour la validation serveur
-      `Contient : ${productNames}` // Description pour l'affichage
+      productIds, 
+      `Contient : ${productNames}`
     )
 
-    // Reset
     setSelectedProducts([])
+    toast.success('Coffret ajouté au panier !')
   }
 
-  const currentTotal = selectedProducts.reduce((sum, p) => sum + p.price, 0)
+  // Calculate the "Real Value" (Sum of individual prices) to show savings
+  const realValue = selectedProducts.reduce((sum, p) => sum + p.price, 0)
 
   return (
     <div>
@@ -80,17 +82,28 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
             <div className="hidden text-right sm:block">
-              <p className="text-xs text-gray-500">Valeur totale</p>
-              <p className="font-bold">{currentTotal.toFixed(2)} DHS</p>
+              <p className="text-xs text-gray-500">Prix du coffret</p>
+              <div className="flex items-baseline gap-2">
+                {/* Show the Fixed Price */}
+                <p className="text-xl font-bold text-gray-900">{BOX_PRICE.toFixed(2)} DHS</p>
+                
+                {/* Optional: Show crossed-out real value if products are selected */}
+                {selectedProducts.length > 0 && realValue > BOX_PRICE && (
+                  <span className="text-sm text-gray-400 line-through">
+                    {realValue.toFixed(0)} DHS
+                  </span>
+                )}
+              </div>
             </div>
+
             <button
               onClick={handleAddBoxToCart}
               disabled={selectedProducts.length !== BOX_LIMIT}
               className="rounded-md bg-yellow-700 px-6 py-3 font-bold text-white transition-colors hover:bg-yellow-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
             >
-              Ajouter le Coffret
+              Ajouter ({BOX_PRICE} DHS)
             </button>
           </div>
         </div>
@@ -131,7 +144,8 @@ export default function BoxBuilder({ products }: BoxBuilderProps) {
               <div className="p-4">
                 <h3 className="font-bold text-gray-900">{product.name}</h3>
                 <p className="text-sm text-gray-500 capitalize">{product.category}</p>
-                <p className="mt-2 font-medium text-yellow-700">{product.price} DHS</p>
+                {/* Note: We still show the individual product price for information */}
+                <p className="mt-2 font-medium text-gray-400">{product.price} DHS</p>
               </div>
             </div>
           )
