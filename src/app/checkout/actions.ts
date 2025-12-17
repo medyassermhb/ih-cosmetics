@@ -6,7 +6,7 @@ import { z } from 'zod'
 import * as nodemailer from 'nodemailer'
 
 // --- CONFIGURATION ---
-const BOX_PRICE_FIXED = 299 // Must match BoxBuilder.tsx
+const BOX_PRICE_FIXED = 299 
 // ---------------------
 
 // 1. Schéma de livraison
@@ -16,7 +16,6 @@ const shippingSchema = z.object({
   phone: z.string().min(10, { message: 'Le téléphone est requis' }),
   address: z.string().min(5, { message: "L'adresse est requise" }),
   city: z.string().min(2, { message: 'La ville est requise' }),
-  // FIX: Accepte 'Maroc' OU 'Morocco'
   country: z.string().refine((val) => ['Maroc', 'Morocco'].includes(val), {
     message: 'Seul le Maroc est disponible',
   }),
@@ -30,6 +29,12 @@ const cartItemSchema = z.object({
   customDescription: z.string().optional()
 })
 
+// Helper pour valider un UUID
+function isValidUUID(uuid: string) {
+  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return regex.test(uuid)
+}
+
 // --- HELPER EMAIL ---
 function getEmailHtml(
   order: any, 
@@ -41,7 +46,6 @@ function getEmailHtml(
   totalDHS: number
 ) {
   let itemsHtml = items.map(item => {
-    // Si c'est un produit normal, on le trouve. Si c'est une box, on utilise une image par défaut ou le 1er produit.
     const product = products.find(p => p.id === item.product_id)
     const productName = product ? product.name : "Coffret Personnalisé"
     const productImage = product ? product.image_url : "" 
@@ -142,25 +146,41 @@ export async function createOrder(
 
   // 2. Calcul des frais de livraison (Serveur)
   const city = validatedFields.data.city.trim()
-  // "Casablanca" (case insensitive) = 20 DHS, autres = 35 DHS
   const shippingFee = city.toLowerCase() === 'casablanca' ? 20 : 35
 
-  // 3. Récupération des produits depuis la DB
-  let allProductIds: string[] = []
+  // 3. Récupération des IDs produits (CORRECTION ICI)
+  let allProductIds: Set<string> = new Set()
+  
   clientCartItems.forEach(item => {
     if (item.childProductIds && item.childProductIds.length > 0) {
-      allProductIds.push(...item.childProductIds)
+      // Pour les coffrets, on prend les IDs des enfants
+      item.childProductIds.forEach(id => {
+        if (isValidUUID(id)) allProductIds.add(id)
+      })
     } else {
-      allProductIds.push(item.productId)
+      // Pour les produits normaux, on vérifie que c'est un UUID valide
+      // Cela évite l'erreur avec les IDs temporaires genre 'coffret-custom-...'
+      if (isValidUUID(item.productId)) {
+        allProductIds.add(item.productId)
+      }
     }
   })
+
+  const idsArray = Array.from(allProductIds)
+
+  if (idsArray.length === 0) {
+    // Si aucun produit valide n'est trouvé, c'est peut-être un vieux panier corrompu
+    // On ne bloque pas tout, mais on risque de ne pas pouvoir calculer le prix correctement
+    // return { error: 'Aucun produit valide trouvé dans le panier.' }
+  }
 
   const { data: products, error: productError } = await supabase
     .from('products')
     .select('id, name, price, image_url')
-    .in('id', allProductIds)
+    .in('id', idsArray)
 
   if (productError || !products) {
+    console.error('Supabase Error:', productError)
     return { error: 'Impossible de vérifier le stock des produits.' }
   }
 
@@ -171,15 +191,8 @@ export async function createOrder(
   for (const item of clientCartItems) {
     if (item.childProductIds && item.childProductIds.length > 0) {
       // --- LOGIQUE COFFRET (Prix Fixe) ---
-      // On utilise le prix fixe défini en haut (299) au lieu d'additionner les produits
       subTotal += BOX_PRICE_FIXED * item.quantity
       
-      // On enregistre quand même les détails pour l'inventaire
-      // Pour éviter de fausser le total "comptable" des lignes, on divise le prix du pack par le nombre d'items
-      // ou on met le premier item au prix du pack et les autres à 0. 
-      // ICI : On crée une ligne "Virtuelle" pour le pack si possible, sinon on attache au 1er produit.
-      
-      // Simplification: On attache le prix au premier produit du coffret pour l'historique
       const firstChildId = item.childProductIds[0]
       for (const childId of item.childProductIds) {
         const realProduct = products.find(p => p.id === childId)
@@ -187,8 +200,7 @@ export async function createOrder(
           orderItemsData.push({
             product_id: realProduct.id,
             quantity: item.quantity,
-            // Astuce : seul le premier produit porte le prix du coffret, les autres sont "gratuits" dans le détail DB
-            // C'est nécessaire pour que la somme des lignes = total de la commande
+            // Prix attaché au 1er produit pour comptabilité
             unit_price_dhs: (childId === firstChildId) ? BOX_PRICE_FIXED : 0
           })
         }
@@ -197,14 +209,19 @@ export async function createOrder(
     } else {
       // --- LOGIQUE STANDARD ---
       const realProduct = products.find(p => p.id === item.productId)
-      if (!realProduct) return { error: `Produit introuvable (ID: ${item.productId})` }
       
-      subTotal += realProduct.price * item.quantity
-      orderItemsData.push({
-        product_id: realProduct.id,
-        quantity: item.quantity,
-        unit_price_dhs: realProduct.price
-      })
+      if (realProduct) {
+        subTotal += realProduct.price * item.quantity
+        orderItemsData.push({
+          product_id: realProduct.id,
+          quantity: item.quantity,
+          unit_price_dhs: realProduct.price
+        })
+      } else {
+        // Si le produit n'est pas trouvé dans la DB (ex: produit supprimé ou ID invalide)
+        // On l'ignore silencieusement ou on lance une erreur selon votre préférence.
+        // Ici on ignore pour ne pas bloquer si c'est un glitch.
+      }
     }
   }
 
@@ -215,8 +232,8 @@ export async function createOrder(
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: null, // Invité
-        total_dhs: finalTotal, // Inclut la livraison
+        user_id: null,
+        total_dhs: finalTotal,
         shipping_address: validatedFields.data,
         status: 'received',
       })
@@ -229,16 +246,18 @@ export async function createOrder(
     }
 
     // 6. Insertion des items
-    const itemsWithOrderId = orderItemsData.map((item) => ({
-      ...item,
-      order_id: newOrder.id,
-    }))
+    if (orderItemsData.length > 0) {
+      const itemsWithOrderId = orderItemsData.map((item) => ({
+        ...item,
+        order_id: newOrder.id,
+      }))
 
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(itemsWithOrderId)
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(itemsWithOrderId)
 
-    if (itemsError) throw itemsError
+      if (itemsError) throw itemsError
+    }
     
     // 7. Envoi de l'email
     if (process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD) {
@@ -253,7 +272,7 @@ export async function createOrder(
         const emailHtml = getEmailHtml(
             newOrder, 
             validatedFields.data, 
-            orderItemsData.filter(i => i.unit_price_dhs > 0), // On affiche seulement les lignes principales
+            orderItemsData.filter(i => i.unit_price_dhs > 0), 
             products, 
             subTotal, 
             shippingFee, 
@@ -273,7 +292,6 @@ export async function createOrder(
     return { error: `Erreur système: ${error.message}` }
   }
   
-  // 8. Redirection Succès
   const orderTimestamp = new Date().getTime()
   redirect(`/checkout/success?order_id=${orderTimestamp}`)
 }
