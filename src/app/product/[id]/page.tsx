@@ -2,19 +2,18 @@ import { createServer } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import AddToCartButton from '@/components/products/AddToCartButton'
+import ProductExtraInfo from '@/components/products/ProductExtraInfo' // <--- 1. Import this
 import { Product } from '@/types/cart'
 
-export const revalidate = 0 // Disable cache to always get fresh data
+export const revalidate = 0
 
 type PageProps = {
   params: Promise<{ id: string }>
 }
 
 export default async function ProductPage({ params }: PageProps) {
-  // 1. Await params (Required for Next.js 15)
   const { id } = await params
   
-  // 2. Fetch Product from Supabase
   const supabase = createServer()
   const { data: product, error } = await supabase
     .from('products')
@@ -22,7 +21,6 @@ export default async function ProductPage({ params }: PageProps) {
     .eq('id', id)
     .single()
 
-  // 3. Handle 404 if product not found
   if (error || !product) {
     notFound()
   }
@@ -34,7 +32,7 @@ export default async function ProductPage({ params }: PageProps) {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-x-8 gap-y-10 lg:grid-cols-2">
           
-          {/* Product Image */}
+          {/* IMAGE SECTION */}
           <div className="relative h-96 w-full overflow-hidden rounded-lg bg-gray-100 lg:h-[600px]">
             <Image
               src={p.image_url || '/placeholder.png'}
@@ -45,7 +43,7 @@ export default async function ProductPage({ params }: PageProps) {
             />
           </div>
 
-          {/* Product Info */}
+          {/* DETAILS SECTION */}
           <div className="flex flex-col justify-center">
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
               {p.name}
@@ -70,9 +68,13 @@ export default async function ProductPage({ params }: PageProps) {
               </p>
             </div>
 
-            <div className="mt-10">
+            <div className="mt-8">
               <AddToCartButton product={p} />
             </div>
+
+            {/* <--- 2. Add the Extra Info Component Here */}
+            <ProductExtraInfo />
+
           </div>
 
         </div>
