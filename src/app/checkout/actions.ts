@@ -5,22 +5,21 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import * as nodemailer from 'nodemailer'
 
-// --- SCHÉMAS DE VALIDATION ---
+// --- CONFIGURATION ---
+const BOX_PRICE_FIXED = 299 // Must match BoxBuilder.tsx
+// ---------------------
 
-// 1. Schéma de livraison (CORRIGÉ)
+// 1. Schéma de livraison
 const shippingSchema = z.object({
   email: z.string().email({ message: 'E-mail invalide.' }),
   name: z.string().min(3, { message: 'Le nom est requis' }),
   phone: z.string().min(10, { message: 'Le téléphone est requis' }),
   address: z.string().min(5, { message: "L'adresse est requise" }),
   city: z.string().min(2, { message: 'La ville est requise' }),
-  
-  // --- CORRECTION ICI ---
-  // On utilise refine() pour valider la valeur 'Morocco' avec un message personnalisé
-  country: z.string().refine((val) => val === 'Morocco', {
+  // FIX: Accepte 'Maroc' OU 'Morocco'
+  country: z.string().refine((val) => ['Maroc', 'Morocco'].includes(val), {
     message: 'Seul le Maroc est disponible',
   }),
-  // ---------------------
 })
 
 // 2. Schéma du panier
@@ -32,14 +31,26 @@ const cartItemSchema = z.object({
 })
 
 // --- HELPER EMAIL ---
-function getEmailHtml(order: any, shipping: any, items: any[], products: any[], totalDHS: number) {
+function getEmailHtml(
+  order: any, 
+  shipping: any, 
+  items: any[], 
+  products: any[], 
+  subTotal: number, 
+  shippingFee: number,
+  totalDHS: number
+) {
   let itemsHtml = items.map(item => {
+    // Si c'est un produit normal, on le trouve. Si c'est une box, on utilise une image par défaut ou le 1er produit.
     const product = products.find(p => p.id === item.product_id)
+    const productName = product ? product.name : "Coffret Personnalisé"
+    const productImage = product ? product.image_url : "" 
+    
     return `
-      <div style="display: flex; align-items: center; margin-bottom: 15px;">
-        <img src="${product.image_url}" alt="${product.name}" width="60" style="border-radius: 5px; margin-right: 15px;">
+      <div style="display: flex; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+        ${productImage ? `<img src="${productImage}" alt="${productName}" width="50" style="border-radius: 5px; margin-right: 15px;">` : ''}
         <div style="flex: 1;">
-          <strong style="font-size: 14px;">${product.name}</strong>
+          <strong style="font-size: 14px;">${productName}</strong>
           <div style="font-size: 12px; color: #555;">Qté: ${item.quantity}</div>
         </div>
         <div style="font-size: 14px; font-weight: bold;">
@@ -50,44 +61,47 @@ function getEmailHtml(order: any, shipping: any, items: any[], products: any[], 
   }).join('')
 
   return `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
-      <h1 style="color: #B8860B; text-align: center;">IH Cosmetics</h1>
-      <h2 style="font-size: 24px; color: #333;">Merci pour votre commande !</h2>
-      <p>Bonjour ${shipping.name}, votre commande a été reçue.</p>
-      <p><strong>Commande N°:</strong> ${order.id.substring(0, 8)}</p>
-      
-      <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px;">
-        <h3 style="font-size: 18px;">Résumé de la commande</h3>
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; background-color: #f9f9f9;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #B8860B; margin: 0;">IH Cosmetics</h1>
+        <p style="color: #777;">Confirmation de commande</p>
+      </div>
+
+      <div style="background: white; padding: 20px; border-radius: 8px;">
+        <p>Bonjour <strong>${shipping.name}</strong>,</p>
+        <p>Nous avons bien reçu votre commande ! Elle est en cours de traitement.</p>
+        <p><strong>N° Commande:</strong> ${order.id.substring(0, 8)}</p>
+        
+        <h3 style="border-bottom: 2px solid #B8860B; padding-bottom: 5px; margin-top: 20px;">Détails</h3>
         ${itemsHtml}
+        
+        <div style="margin-top: 20px; padding-top: 10px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span>Sous-total:</span>
+            <strong>${subTotal.toFixed(2)} DHS</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #B8860B;">
+            <span>Livraison (${shipping.city}):</span>
+            <strong>${shippingFee.toFixed(2)} DHS</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 18px; margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px;">
+            <strong>Total à payer:</strong>
+            <strong>${totalDHS.toFixed(2)} DHS</strong>
+          </div>
+        </div>
       </div>
       
-      <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 10px;">
-        <div style="display: flex; justify-content: space-between;">
-          <span>Sous-total:</span>
-          <strong>${totalDHS.toFixed(2)} DHS</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span>Livraison:</span>
-          <strong>Gratuite</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 18px; margin-top: 10px;">
-          <strong>Total:</strong>
-          <strong>${totalDHS.toFixed(2)} DHS</strong>
-        </div>
-      </div>
-      
-      <div style="border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px;">
-        <h3 style="font-size: 18px;">Adresse de livraison</h3>
-        <p style="margin: 0;">${shipping.name}</p>
+      <div style="margin-top: 20px; font-size: 14px; color: #555;">
+        <h4 style="margin-bottom: 5px;">Adresse de livraison</h4>
         <p style="margin: 0;">${shipping.address}</p>
-        <p style="margin: 0;">${shipping.city}, Maroc</p>
+        <p style="margin: 0;">${shipping.city}, ${shipping.country}</p>
         <p style="margin: 0;">${shipping.phone}</p>
       </div>
     </div>
   `
 }
 
-// --- ACTION PRINCIPALE : CRÉER COMMANDE ---
+// --- ACTION PRINCIPALE ---
 export async function createOrder(
   prevState: any,
   formData: FormData
@@ -103,11 +117,12 @@ export async function createOrder(
     country: formData.get('country'),
   }
 
+  // 1. Validation du formulaire
   const validatedFields = shippingSchema.safeParse(shippingData)
 
   if (!validatedFields.success) {
     return {
-      error: 'Formulaire invalide. Veuillez vérifier vos informations.',
+      error: 'Formulaire incomplet ou invalide.',
       errors: validatedFields.error.flatten().fieldErrors,
     }
   }
@@ -122,10 +137,15 @@ export async function createOrder(
       cartItemSchema.parse(item)
     )
   } catch (e) {
-    return { error: 'Erreur de données du panier.' }
+    return { error: 'Erreur technique (Panier invalide).' }
   }
 
-  // 1. Collecter TOUS les IDs
+  // 2. Calcul des frais de livraison (Serveur)
+  const city = validatedFields.data.city.trim()
+  // "Casablanca" (case insensitive) = 20 DHS, autres = 35 DHS
+  const shippingFee = city.toLowerCase() === 'casablanca' ? 20 : 35
+
+  // 3. Récupération des produits depuis la DB
   let allProductIds: string[] = []
   clientCartItems.forEach(item => {
     if (item.childProductIds && item.childProductIds.length > 0) {
@@ -135,44 +155,51 @@ export async function createOrder(
     }
   })
 
-  // 2. Récupérer les vrais produits
   const { data: products, error: productError } = await supabase
     .from('products')
     .select('id, name, price, image_url')
     .in('id', allProductIds)
 
   if (productError || !products) {
-    return { error: 'Erreur lors de la vérification des produits.' }
+    return { error: 'Impossible de vérifier le stock des produits.' }
   }
 
-  // 3. Calculer le total
-  let totalDHS = 0
+  // 4. Calcul du Total (Produits + Box)
+  let subTotal = 0
   const orderItemsData = []
 
   for (const item of clientCartItems) {
     if (item.childProductIds && item.childProductIds.length > 0) {
-      // LOGIQUE COFFRET
-      let boxPrice = 0
+      // --- LOGIQUE COFFRET (Prix Fixe) ---
+      // On utilise le prix fixe défini en haut (299) au lieu d'additionner les produits
+      subTotal += BOX_PRICE_FIXED * item.quantity
+      
+      // On enregistre quand même les détails pour l'inventaire
+      // Pour éviter de fausser le total "comptable" des lignes, on divise le prix du pack par le nombre d'items
+      // ou on met le premier item au prix du pack et les autres à 0. 
+      // ICI : On crée une ligne "Virtuelle" pour le pack si possible, sinon on attache au 1er produit.
+      
+      // Simplification: On attache le prix au premier produit du coffret pour l'historique
+      const firstChildId = item.childProductIds[0]
       for (const childId of item.childProductIds) {
         const realProduct = products.find(p => p.id === childId)
-        if (!realProduct) return { error: `Produit introuvable dans le coffret` }
-        
-        boxPrice += realProduct.price
-        
-        orderItemsData.push({
-          product_id: realProduct.id,
-          quantity: item.quantity,
-          unit_price_dhs: realProduct.price
-        })
+        if (realProduct) {
+          orderItemsData.push({
+            product_id: realProduct.id,
+            quantity: item.quantity,
+            // Astuce : seul le premier produit porte le prix du coffret, les autres sont "gratuits" dans le détail DB
+            // C'est nécessaire pour que la somme des lignes = total de la commande
+            unit_price_dhs: (childId === firstChildId) ? BOX_PRICE_FIXED : 0
+          })
+        }
       }
-      totalDHS += boxPrice * item.quantity
 
     } else {
-      // LOGIQUE PRODUIT NORMAL
+      // --- LOGIQUE STANDARD ---
       const realProduct = products.find(p => p.id === item.productId)
-      if (!realProduct) return { error: `Produit ${item.productId} introuvable` }
+      if (!realProduct) return { error: `Produit introuvable (ID: ${item.productId})` }
       
-      totalDHS += realProduct.price * item.quantity
+      subTotal += realProduct.price * item.quantity
       orderItemsData.push({
         product_id: realProduct.id,
         quantity: item.quantity,
@@ -181,13 +208,15 @@ export async function createOrder(
     }
   }
 
+  const finalTotal = subTotal + shippingFee
+
   try {
-    // Insérer la commande
+    // 5. Création de la commande
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
       .insert({
         user_id: null, // Invité
-        total_dhs: totalDHS,
+        total_dhs: finalTotal, // Inclut la livraison
         shipping_address: validatedFields.data,
         status: 'received',
       })
@@ -195,10 +224,11 @@ export async function createOrder(
       .single()
 
     if (orderError || !newOrder) {
-      throw new Error(orderError?.message || 'Failed to create order')
+      console.error('Order Error:', orderError)
+      throw new Error('Erreur lors de la création de la commande.')
     }
 
-    // Lier les items
+    // 6. Insertion des items
     const itemsWithOrderId = orderItemsData.map((item) => ({
       ...item,
       order_id: newOrder.id,
@@ -210,40 +240,44 @@ export async function createOrder(
 
     if (itemsError) throw itemsError
     
-    // Envoyer l'email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_SERVER_USER,
-        pass: process.env.EMAIL_SERVER_PASSWORD,
-      },
-    })
+    // 7. Envoi de l'email
+    if (process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD) {
+        const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_SERVER_USER,
+            pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+        })
 
-    const emailHtml = getEmailHtml(newOrder, validatedFields.data, orderItemsData, products, totalDHS)
+        const emailHtml = getEmailHtml(
+            newOrder, 
+            validatedFields.data, 
+            orderItemsData.filter(i => i.unit_price_dhs > 0), // On affiche seulement les lignes principales
+            products, 
+            subTotal, 
+            shippingFee, 
+            finalTotal
+        )
 
-    await transporter.sendMail({
-      from: `"IH Cosmetics" <${process.env.EMAIL_SERVER_USER}>`,
-      to: orderEmail,
-      subject: `Confirmation de commande #${newOrder.id.substring(0, 8)}`,
-      html: emailHtml,
-    })
+        await transporter.sendMail({
+        from: `"IH Cosmetics" <${process.env.EMAIL_SERVER_USER}>`,
+        to: orderEmail,
+        subject: `Confirmation de commande #${newOrder.id.substring(0, 8)}`,
+        html: emailHtml,
+        })
+    }
     
   } catch (error: any) {
     console.error('Transaction Error:', error.message)
-    if (error.code === 'EAUTH') {
-      console.error('Email sending failed: Invalid Gmail credentials.')
-    } else if (error.message.includes('Nodemailer')) {
-      console.error('Email sending failed:', error.message)
-    } else {
-      return { error: `Impossible de passer la commande : ${error.message}` }
-    }
+    return { error: `Erreur système: ${error.message}` }
   }
   
+  // 8. Redirection Succès
   const orderTimestamp = new Date().getTime()
   redirect(`/checkout/success?order_id=${orderTimestamp}`)
 }
 
-// Dummy exports pour éviter les erreurs d'import
 export async function inlineLogin() { return { success: false } }
 export async function inlineSignup() { return { success: false } }
 export async function inlineLogout() { return { success: false } }
