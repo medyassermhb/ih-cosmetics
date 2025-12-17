@@ -13,7 +13,7 @@ type BoxBuilderProps = {
 
 // --- CONFIGURATION ---
 const BOX_LIMIT = 3
-const BOX_PRICE = 299 // <--- CHANGE THIS TO YOUR DESIRED FIXED PRICE (e.g. 250, 300)
+const BOX_PRICE = 130 // <--- CHANGE THIS TO YOUR DESIRED FIXED PRICE (e.g. 250, 300)
 // ---------------------
 
 export default function BoxBuilder({ products }: BoxBuilderProps) {
