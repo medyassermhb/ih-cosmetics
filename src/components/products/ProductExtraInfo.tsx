@@ -18,13 +18,17 @@ export default function ProductExtraInfo() {
       content: (
         <div className="space-y-2 text-sm text-gray-600">
           <p>
-            <strong>Expédition Rapide :</strong> Toute commande passée avant 14h est expédiée le jour même.
+            <strong>Partenaire Logistique :</strong> Livraison assurée par <strong>ForceLog</strong>.
           </p>
           <p>
-            <strong>Délais :</strong> Livraison en 24h à 48h partout au Maroc via nos partenaires de confiance (Amana, Aramex).
+            <strong>Délais :</strong> Réception sous <strong>48h maximum</strong> (2 jours) après expédition.
           </p>
-          <p>
-            <strong>Frais :</strong> Livraison gratuite pour toute commande supérieure à 500 DHS. Sinon, frais fixes de 35 DHS.
+          <ul className="list-inside list-disc">
+            <li><strong>Casablanca :</strong> 20 DHS</li>
+            <li><strong>Autres villes :</strong> 35 DHS</li>
+          </ul>
+          <p className="text-xs italic text-gray-400 mt-2">
+            *Paiement à la livraison disponible.
           </p>
         </div>
       ),
@@ -39,10 +43,8 @@ export default function ProductExtraInfo() {
             Satisfait ou remboursé sous <strong>7 jours</strong>.
           </p>
           <p>
-            Si le produit ne vous convient pas (ou s'il est endommagé), contactez-nous simplement sur WhatsApp. Nous organiserons le retour sans frais supplémentaires si l'erreur vient de nous.
-          </p>
-          <p className="text-xs italic text-gray-400">
-            *Le produit doit être non utilisé et dans son emballage d'origine.
+            Si le produit ne vous convient pas, contactez-nous sur WhatsApp. 
+            Le produit doit être non utilisé et dans son emballage d'origine.
           </p>
         </div>
       ),
@@ -53,9 +55,8 @@ export default function ProductExtraInfo() {
       icon: <ShieldCheck className="h-5 w-5 text-yellow-700" />,
       content: (
         <p className="text-sm text-gray-600">
-          Chez IH Cosmetics, nous ne vendons que des produits <strong>100% originaux et certifiés</strong>. 
-          Nous sommes revendeurs agréés de toutes les marques présentes sur notre site. 
-          Méfiez-vous des contrefaçons bon marché ailleurs.
+          Produits <strong>100% originaux</strong>. Nous sommes revendeurs officiels. 
+          Méfiez-vous des contrefaçons.
         </p>
       ),
     },
@@ -68,7 +69,7 @@ export default function ProductExtraInfo() {
           <div key={section.id} className="rounded-lg border border-gray-100 bg-gray-50/50">
             <button
               onClick={() => toggleSection(section.id)}
-              className="flex w-full items-center justify-between px-4 py-4 text-left focus:outline-none"
+              className="flex w-full items-center justify-between px-4 py-4 text-left focus:outline-none hover:bg-gray-100 transition-colors"
             >
               <div className="flex items-center gap-3">
                 {section.icon}
